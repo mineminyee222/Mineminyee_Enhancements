@@ -1,5 +1,9 @@
 local LOADER_BASE = "http://mineminyee-lua.kro.kr:5000"
-local SCRIPT_NAME = "loader.lua"
+local SCRIPT_NAME = rawget(_G, "script_name")
+    or (getgenv and getgenv().script_name)
+    or (getfenv and getfenv().script_name)
+    or "loader.lua"
+SCRIPT_NAME = tostring(SCRIPT_NAME)
 
 local function getHWID()
     local ok, id = pcall(function()
