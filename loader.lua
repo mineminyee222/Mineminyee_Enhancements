@@ -1,3 +1,4 @@
+
 local LOADER_BASE = "http://mineminyee-lua.kro.kr:5000"
 local SCRIPT_NAME = "loader.lua"
 
@@ -5,7 +6,7 @@ local function getHWID()
     local ok, id = pcall(function()
         return game:GetService("RbxAnalyticsService"):GetClientId()
     end)
-    if ok and id and id ~= "" then
+    if ok and id and tostring(id) ~= "" then
         return tostring(id)
     end
     ok, id = pcall(function()
@@ -40,7 +41,7 @@ local function notify(msg)
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "Mineminyee",
-            Text = msg,
+            Text = tostring(msg),
             Duration = 5,
         })
     end)
@@ -54,7 +55,6 @@ local key = rawget(_G, "script_key")
 if type(key) ~= "string" or key == "" then
     error([[
 [Mineminyee] 키가 없습니다.
-아래처럼 입력한 뒤 다시 실행하세요:
 
 script_key = "여기에키입력"
 loadstring(game:HttpGet("https://raw.githubusercontent.com/mineminyee222/Mineminyee_Enhancements/refs/heads/main/loader.lua"))()
@@ -74,30 +74,49 @@ local body = HttpService:JSONEncode({
 })
 
 notify("인증 중...")
+print("[Mineminyee] URL:", url)
+print("[Mineminyee] HWID:", hwid)
 
 local ok, res = pcall(function()
     return httpPost(url, body)
 end)
 
-if not ok or not res then
+if not ok then
     error("[Mineminyee] 서버 요청 실패: " .. tostring(res))
 end
+if not res then
+    error("[Mineminyee] 서버 응답 없음 (도메인/포트/서버 실행 확인)")
+end
 
-local status = res.StatusCode or res.Status or 0
+local status = tonumber(res.StatusCode or res.Status or 0) or 0
 local responseBody = res.Body or res.body or ""
 
+print("[Mineminyee] Status:", status)
+print("[Mineminyee] Body length:", #tostring(responseBody))
+
 if status ~= 200 then
-    if type(responseBody) == "string" and #responseBody > 0 then
-        local fn = loadstring(responseBody)
-        if fn then fn() end
-    end
-    error("[Mineminyee] 인증 실패 (" .. tostring(status) .. ")")
+    local msg = tostring(responseBody)
+    -- error() 문자열만 추출
+    local extracted = msg:match('%[Mineminyee%][^"]*') or msg:sub(1, 200)
+    error("[Mineminyee] 인증 실패 (" .. status .. "): " .. extracted)
+end
+
+if type(responseBody) ~= "string" or #responseBody < 1 then
+    error("[Mineminyee] 서버가 빈 스크립트를 반환했습니다. 관리자 Scripts에 코드를 넣으세요.")
+end
+
+-- Kick/error 응답이 200으로 온 경우 방어
+if responseBody:find("LocalPlayer:Kick") or responseBody:find('error("%[Mineminyee%]') then
+    error("[Mineminyee] 서버가 오류 응답을 보냈습니다: " .. responseBody:sub(1, 150))
 end
 
 local fn, err = loadstring(responseBody)
 if not fn then
-    error("[Mineminyee] 스크립트 로드 오류: " .. tostring(err))
+    error("[Mineminyee] 스크립트 문법 오류: " .. tostring(err) .. "\n(관리자에 넣은 Lua 코드를 확인하세요)")
 end
 
-notify("스크립트 로드 중...")
-fn()
+notify("스크립트 실행")
+local execOk, execErr = pcall(fn)
+if not execOk then
+    error("[Mineminyee] 스크립트 실행 오류: " .. tostring(execErr))
+end
