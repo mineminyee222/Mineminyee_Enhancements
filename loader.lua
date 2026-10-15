@@ -1,4 +1,3 @@
-
 local LOADER_BASE = "http://mineminyee-lua.kro.kr:5000"
 local SCRIPT_NAME = "loader.lua"
 
@@ -48,22 +47,51 @@ local function notify(msg)
     print("[Mineminyee]", msg)
 end
 
+local function doKick(msg)
+    msg = tostring(msg or "Access denied")
+    pcall(function()
+        game:GetService("Players").LocalPlayer:Kick("[Mineminyee] " .. msg)
+    end)
+end
+
+local function runResponse(body)
+    if type(body) ~= "string" or #body < 1 then
+        return false, "empty"
+    end
+    -- 서버가 Kick 코드를 보낸 경우 실행
+    if body:find("LocalPlayer:Kick") or body:find(":Kick(") then
+        local fn = loadstring(body)
+        if fn then
+            pcall(fn)
+        else
+            doKick("Access denied")
+        end
+        return true, "kicked"
+    end
+    local fn, err = loadstring(body)
+    if not fn then
+        return false, tostring(err)
+    end
+    local ok, execErr = pcall(fn)
+    if not ok then
+        return false, tostring(execErr)
+    end
+    return true, "ok"
+end
+
 local key = rawget(_G, "script_key")
     or (getgenv and getgenv().script_key)
     or (getfenv and getfenv().script_key)
 
 if type(key) ~= "string" or key == "" then
-    error([[
-[Mineminyee] 키가 없습니다.
-
-script_key = "여기에키입력"
-loadstring(game:HttpGet("https://raw.githubusercontent.com/mineminyee222/Mineminyee_Enhancements/refs/heads/main/loader.lua"))()
-]])
+    doKick("Key required. Set script_key = \"YOUR-KEY\"")
+    return
 end
 
 local hwid = getHWID()
 if hwid == "UNKNOWN" then
-    error("[Mineminyee] HWID를 읽을 수 없습니다.")
+    doKick("Could not read HWID")
+    return
 end
 
 local url = LOADER_BASE:gsub("/+$", "") .. "/" .. SCRIPT_NAME
@@ -81,11 +109,9 @@ local ok, res = pcall(function()
     return httpPost(url, body)
 end)
 
-if not ok then
-    error("[Mineminyee] 서버 요청 실패: " .. tostring(res))
-end
-if not res then
-    error("[Mineminyee] 서버 응답 없음 (도메인/포트/서버 실행 확인)")
+if not ok or not res then
+    doKick("Server request failed")
+    return
 end
 
 local status = tonumber(res.StatusCode or res.Status or 0) or 0
@@ -95,28 +121,20 @@ print("[Mineminyee] Status:", status)
 print("[Mineminyee] Body length:", #tostring(responseBody))
 
 if status ~= 200 then
-    local msg = tostring(responseBody)
-    -- error() 문자열만 추출
-    local extracted = msg:match('%[Mineminyee%][^"]*') or msg:sub(1, 200)
-    error("[Mineminyee] 인증 실패 (" .. status .. "): " .. extracted)
+    local ran, why = runResponse(tostring(responseBody))
+    if not ran or why == "empty" then
+        doKick("Auth failed (" .. tostring(status) .. ")")
+    end
+    return
 end
 
 if type(responseBody) ~= "string" or #responseBody < 1 then
-    error("[Mineminyee] 서버가 빈 스크립트를 반환했습니다. 관리자 Scripts에 코드를 넣으세요.")
-end
-
--- Kick/error 응답이 200으로 온 경우 방어
-if responseBody:find("LocalPlayer:Kick") or responseBody:find('error("%[Mineminyee%]') then
-    error("[Mineminyee] 서버가 오류 응답을 보냈습니다: " .. responseBody:sub(1, 150))
-end
-
-local fn, err = loadstring(responseBody)
-if not fn then
-    error("[Mineminyee] 스크립트 문법 오류: " .. tostring(err) .. "\n(관리자에 넣은 Lua 코드를 확인하세요)")
+    doKick("Empty script from server. Put code in admin Scripts.")
+    return
 end
 
 notify("스크립트 실행")
-local execOk, execErr = pcall(fn)
-if not execOk then
-    error("[Mineminyee] 스크립트 실행 오류: " .. tostring(execErr))
+local ran, why = runResponse(responseBody)
+if not ran then
+    doKick("Script error: " .. tostring(why))
 end
