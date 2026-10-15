@@ -1,10 +1,3 @@
---[[
-  Mineminyee Secure Loader
-  사용법:
-  script_key = "발급받은키"
-  loadstring(game:HttpGet("https://raw.githubusercontent.com/mineminyee222/Mineminyee_Enhancements/refs/heads/main/loader.lua"))()
-]]
-
 local LOADER_BASE = "http://mineminyee-lua.kro.kr:5000"
 local SCRIPT_NAME = "loader.lua"
 
