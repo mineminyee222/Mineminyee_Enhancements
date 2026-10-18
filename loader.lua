@@ -1,11 +1,5 @@
 local LOADER_BASE = "http://mineminyee-lua.kro.kr:5000"
 
-local SCRIPT_NAME = tostring(
-    rawget(_G, "script_name")
-    or (getgenv and getgenv().script_name)
-    or "loader.lua"
-)
-
 local function doKick(msg)
     pcall(function()
         game:GetService("Players").LocalPlayer:Kick("[Mineminyee] " .. tostring(msg))
@@ -16,9 +10,74 @@ if not game or not game.GetService then
     error("[Mineminyee] Roblox runtime only")
 end
 
-local key = rawget(_G, "script_key") or (getgenv and getgenv().script_key)
-if type(key) ~= "string" or key == "" then
-    doKick("Set script_key = \"YOUR_KEY\" first")
+-- script_key / script_name: 호출한 쪽 환경에서 찾기 (loadstring 새 환경 문제 대응)
+local function pick_string(v)
+    if type(v) == "string" and #v > 0 then
+        return v
+    end
+    return nil
+end
+
+local function find_from_env(env, name)
+    if type(env) ~= "table" then
+        return nil
+    end
+    local ok, v = pcall(function()
+        return env[name]
+    end)
+    if ok then
+        return pick_string(v)
+    end
+    return nil
+end
+
+local function find_var(name)
+    local v
+    -- 1) 직접 전역 (일부 실행기)
+    v = pick_string(rawget(_G, name))
+    if v then return v end
+
+    -- 2) 호출 스택 환경 (script_key = ... 한 스크립트에서 loadstring 호출 시)
+    for level = 1, 6 do
+        local ok, env = pcall(function()
+            return getfenv(level)
+        end)
+        if ok then
+            v = find_from_env(env, name)
+            if v then return v end
+        end
+    end
+
+    -- 3) shared / getgenv / getrenv (실행기마다 다름 — 유저 입력 방식은 script_key = 유지)
+    pcall(function()
+        if shared then
+            v = pick_string(shared[name])
+        end
+    end)
+    if v then return v end
+
+    pcall(function()
+        if getgenv then
+            v = pick_string(getgenv()[name])
+        end
+    end)
+    if v then return v end
+
+    pcall(function()
+        if getrenv then
+            v = pick_string(getrenv()[name])
+        end
+    end)
+    if v then return v end
+
+    return nil
+end
+
+local key = find_var("script_key")
+local SCRIPT_NAME = find_var("script_name") or "loader.lua"
+
+if not key then
+    doKick('Set script_key = "YOUR_KEY" first')
     return
 end
 
@@ -46,7 +105,7 @@ end
 
 local HttpService = game:GetService("HttpService")
 local body = HttpService:JSONEncode({ key = key, hwid = hwid })
-local url = LOADER_BASE:gsub("/+$", "") .. "/" .. SCRIPT_NAME
+local url = LOADER_BASE:gsub("/+$", "") .. "/" .. tostring(SCRIPT_NAME)
 
 local headers = {
     ["Content-Type"] = "application/json",
@@ -87,7 +146,9 @@ print("[Mineminyee] Status:", status)
 if status ~= 200 then
     if type(responseBody) == "string" and responseBody:find("Kick") then
         local fn = loadstring(responseBody)
-        if fn then pcall(fn) end
+        if fn then
+            pcall(fn)
+        end
     else
         doKick("Authentication failed")
     end
