@@ -1,5 +1,5 @@
 local LOADER_BASE = "http://mineminyee-lua.kro.kr:5000"
-local HMAC_SECRET = "CHANGE_ME_TO_SERVER_HMAC_SECRET"
+local HMAC_SECRET = "Z_RkEJAO3RCsjTVpNfrR5dGMobYWxHy-u-Vah5vD5HAIQVTyyQNhouVM0C1oSJ4o"
 
 local SCRIPT_NAME = tostring(
     rawget(_G, "script_name")
