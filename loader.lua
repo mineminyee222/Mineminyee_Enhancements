@@ -10,7 +10,7 @@ if not game or not game.GetService then
     error("[Mineminyee] Roblox runtime only")
 end
 
--- script_key / script_name: 호출한 쪽 환경에서 찾기 (loadstring 새 환경 문제 대응)
+
 local function pick_string(v)
     if type(v) == "string" and #v > 0 then
         return v
@@ -33,11 +33,11 @@ end
 
 local function find_var(name)
     local v
-    -- 1) 직접 전역 (일부 실행기)
+
     v = pick_string(rawget(_G, name))
     if v then return v end
 
-    -- 2) 호출 스택 환경 (script_key = ... 한 스크립트에서 loadstring 호출 시)
+
     for level = 1, 6 do
         local ok, env = pcall(function()
             return getfenv(level)
@@ -48,7 +48,7 @@ local function find_var(name)
         end
     end
 
-    -- 3) shared / getgenv / getrenv (실행기마다 다름 — 유저 입력 방식은 script_key = 유지)
+
     pcall(function()
         if shared then
             v = pick_string(shared[name])
